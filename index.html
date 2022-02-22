@@ -76,17 +76,17 @@
                     }
                 )
                 // 本质没有跳转,只是更新状态(---吧historyState.value和window.history里的状态修改)   后续在vue中可以详细监控到状态的变化
-                changeLocation(currentState.current,currentState,true)
+                changeLocation(currentState.current, currentState, true)
 
                 let state = Object.assign(
                     {},
-                    buildState(currentLocation.value,to,null),
+                    buildState(currentLocation.value, to, null),
                     {
-                        position:currentState.position + 1 // 因为准备修改定位,而这个值还是上次的,所以需要修改一下
+                        position: currentState.position + 1 // 因为准备修改定位,而这个值还是上次的,所以需要修改一下
                     },
                     data // 最新的状态
                 )
-                changeLocation(to,state,false) // 这才是更改了路径,前面的传参还是currentLocation,只是调用了里面的修改参数. 感觉拆开就是为了中间做一些生命周期的监控.
+                changeLocation(to, state, false) // 这才是更改了路径,前面的传参还是currentLocation,只是调用了里面的修改参数. 感觉拆开就是为了中间做一些生命周期的监控.
                 currentLocation.value = to
                 //2. 跳转后 => 从这到了那
             }
@@ -97,7 +97,7 @@
                 let state = Object.assign( // 合成了一个新状态
                     {},
                     buildState(historyState.value.back, to, historyState.value
-                        .forward,true), // 替换的话,就考虑所有的都用以前的值就行,没太懂为什么
+                        .forward, true), // 替换的话,就考虑所有的都用以前的值就行,没太懂为什么
                     data // 用户传递的还是要继续传递进去
                 )
                 changeLocation(to, state, true)
@@ -107,22 +107,63 @@
 
 
             return {
-                location:currentLocation, // 当前位置
+                location: currentLocation, // 当前位置
                 state: historyState,
                 push,
                 replace
             }
         }
+        // 前进后退的时候,要更新historyState,currentLocation这两个变量
+        function useHistoryStateListeners(historyState, currentLocation) { // 做个前进后退监听
+            let listeners = []
+            let popStateHandler = ({ state }) => { // 每次都能从上一次里取得上一次的状态 // e.state直接做了解构赋值
+                // 只能监听浏览器的前进/后退功能 不用监听hashchange
+                // console.log(state); // 每次触发都是最新的状态,所以下面的historyState才能直接使用. 是已经前进后退完成后的状态
+                let to = createCurrentLocation(); // 去哪里的值  监听到改变的时候,获取当前值就可以.
+                let from = currentLocation.value; // 从哪里来的值 =>url
+                let fromState = historyState.value; // 从哪里来的状态 => state是个对象
+                currentLocation.value = to;
+                historyState.value = state // state有可能为null
+                // buildState(from,currentLocation,to)
+                let isBack = (state.position - fromState.position) < 0// 当前的状态 - 上次的状态 如果小于0就是后退 否则前进
+                console.log(isBack);
+                listeners.forEach(listener => {
+                    listener(to, from, { isBack })
+                })
+            }
+            window.addEventListener('popstate', popStateHandler)
+            function listen(cb) {
+                listeners.push(cb)
+            }
+            return {
+                listen
+            }
 
+        }
         function createWebHistory(params) {
             // 1. 包含当前路径(url) 2. 当前路径他的状态是什么(state) 3. 需要提供两个切换路径的方法(push/replace)
             let historyNavigation = useHistoryStateNavigation(); // 包含路径,状态,两个包含的方法
-            return {
-                ...historyNavigation
-            }
+            let historyListeners = useHistoryStateListeners(historyNavigation.state, historyNavigation.location) // 这里是做了个监听
+            let routerHistory = Object.assign(
+                {},
+                historyNavigation,
+                historyListeners
+            )
+            Object.defineProperty(routerHistory, 'location', { // 原本外界取值是routerHistory.location.value,现在就是routerHistory.location
+                get: () => historyNavigation.location.value
+            })
+            Object.defineProperty(routerHistory, 'state', { // 原本外界取值是routerHistory.location.value,现在就是routerHistory.location
+                get: () => historyNavigation.state.value
+            })
+            return routerHistory
         }
-        const history = createWebHistory();
-        console.log(history);
+        const routerHistory = createWebHistory();
+        console.log(routerHistory.location);
+        console.log(routerHistory.state);
+        routerHistory.listen((to, from, { isBack }) => {
+
+            console.log(to, from, isBack);
+        })
     </script>
 </body>
 
