@@ -9,9 +9,9 @@
 </head>
 
 <body>
-    <button onclick="history.push('/')">首页</button>
-    <button onclick="history.push('/about')">关于我</button>
-    <button onclick="history.replace('/xxxx')">替换</button>
+    <button onclick="routerHistory.push('/')">首页</button>
+    <button onclick="routerHistory.push('/about')">关于我</button>
+    <button onclick="routerHistory.replace('/xxxx')">替换</button>
     <script>
         // 路由系统最基本的  1. 包含当前路径(url) 2. 当前路径他的状态是什么(state) 3. 需要提供两个切换路径的方法(push/replace) 4. 路由监听: 如果路径变化,需要通知用户
         function buildState(back, current, forward, replace = false, computedScroll = false) {
@@ -33,19 +33,24 @@
             }
         }
 
-        function createCurrentLocation() {
+        function createCurrentLocation(base = '') {
             let {
                 pathname,
                 search,
                 hash
             } = window.location;
-            console.log(window.location);
+            // console.log(window.location);
+            console.log(base);
+           let hasPos = base.includes('#') // 有hash就是存在路径
+           if(hasPos){ // 如果有hash
+               return base.slice(1) || '/' // 如果有#,就把#裁剪掉. 但是发现bug缺少一个/
+           }
             return pathname + search + hash
         }
 
-        function useHistoryStateNavigation() {
+        function useHistoryStateNavigation(base) {
             let currentLocation = { // 当前路径
-                value: createCurrentLocation(), // 可以currentLocation.value来获取值
+                value: createCurrentLocation(base), // 可以currentLocation.value来获取值
             };
             let historyState = { // 状态
                 value: window.history.state
@@ -57,7 +62,11 @@
             }
 
             function changeLocation(to, state, replace) { // 去哪里,状态是什么,用什么模式用这个函数来修改
-                window.history[replace ? 'replaceState' : 'pushState'](state, null, to)
+                let hasPos = base.includes('#')
+
+                // 如果是hash版本,就要增加#
+                let url = hasPos? base + to : to;
+                window.history[replace ? 'replaceState' : 'pushState'](state, null, url)
                 historyState.value = state // 每次修改url,就需要修改历史路径. 将自己生成的状态同步到路由系统中
             }
 
@@ -93,7 +102,6 @@
             // --replace和push的区别--  [a,b,c] 一个栈里的内容,如果是push,就向后追加. 一个栈里如果是replace就是把最后一个替换. 
             function replace(to, data) { // 1. 去哪里 2. 带什么新状态
                 // data和自身historyState合并
-                debugger
                 let state = Object.assign( // 合成了一个新状态
                     {},
                     buildState(historyState.value.back, to, historyState.value
@@ -114,12 +122,12 @@
             }
         }
         // 前进后退的时候,要更新historyState,currentLocation这两个变量
-        function useHistoryStateListeners(historyState, currentLocation) { // 做个前进后退监听
+        function useHistoryStateListeners(base,historyState, currentLocation) { // 做个前进后退监听
             let listeners = []
             let popStateHandler = ({ state }) => { // 每次都能从上一次里取得上一次的状态 // e.state直接做了解构赋值
                 // 只能监听浏览器的前进/后退功能 不用监听hashchange
                 // console.log(state); // 每次触发都是最新的状态,所以下面的historyState才能直接使用. 是已经前进后退完成后的状态
-                let to = createCurrentLocation(); // 去哪里的值  监听到改变的时候,获取当前值就可以.
+                let to = createCurrentLocation(base); // 去哪里的值  监听到改变的时候,获取当前值就可以.
                 let from = currentLocation.value; // 从哪里来的值 =>url
                 let fromState = historyState.value; // 从哪里来的状态 => state是个对象
                 currentLocation.value = to;
@@ -140,10 +148,10 @@
             }
 
         }
-        function createWebHistory(params) {
+        function createWebHistory( base = '') {
             // 1. 包含当前路径(url) 2. 当前路径他的状态是什么(state) 3. 需要提供两个切换路径的方法(push/replace)
-            let historyNavigation = useHistoryStateNavigation(); // 包含路径,状态,两个包含的方法
-            let historyListeners = useHistoryStateListeners(historyNavigation.state, historyNavigation.location) // 这里是做了个监听
+            let historyNavigation = useHistoryStateNavigation(base); // 包含路径,状态,两个包含的方法
+            let historyListeners = useHistoryStateListeners(base,historyNavigation.state, historyNavigation.location) // 这里是做了个监听
             let routerHistory = Object.assign(
                 {},
                 historyNavigation,
@@ -157,7 +165,16 @@
             })
             return routerHistory
         }
-        const routerHistory = createWebHistory();
+
+        function createWebHashHistory(){
+            return createWebHistory('#')
+        }
+        const routerHistory = createWebHashHistory();
+        // const routerHistory = createWebHistory();
+        // function createWebHashHistory(){
+        //     return createWebHistory('#')
+        // }
+        // const routerHashHistory = createWebHashHistory();
         console.log(routerHistory.location);
         console.log(routerHistory.state);
         routerHistory.listen((to, from, { isBack }) => {
