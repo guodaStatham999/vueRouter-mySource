@@ -41,6 +41,17 @@ let START_LOCATION_NORMALIZED = { // 初始化路由系统中的默认参数
     // name
 }
 
+function useCallback(){
+    let handlers = [];
+    function add(handler){
+        handlers.push(handler)
+    }
+    return {
+        add,
+        list:()=>handlers
+    }
+}
+
 function createRouter({
     history,
     routes
@@ -48,7 +59,7 @@ function createRouter({
     let routerHistory = history;
     // let routerRoutes = routes; // 格式化路由的配置 => 需要拍平 /a => a组件 /b =>b组件
     let matcher = createRouterMatcher(routes) // 格式化一个树
-    console.log(matcher);
+    // console.log(matcher);
     // 后续改变这个数据的value,就可以更新视图
     let currentRoute = shallowRef(START_LOCATION_NORMALIZED); // shallow不会再次包裹里面的对象为proxy了
 
@@ -81,7 +92,7 @@ function createRouter({
             routerHistory.push(to.path)
         }
         currentRoute.value = to; // 更新最新的路径,因为已经跳转了,要修改本地记录 
-        console.log(currentRoute.value);
+        // console.log(currentRoute.value);
 
 
 
@@ -105,12 +116,19 @@ function createRouter({
     function push(to){
         return pushWithRedirect(to)
     }
+    let beforeGuards = useCallback()
+    let beforeResolveGuards = useCallback()
+    let afterGuards = useCallback()
 
+    console.log(beforeGuards.list());
     let router = {
         push,
         replace(){
 
         },
+        beforeEach:beforeGuards.add, // 都是可以注册多个,所以是个发布订阅
+        beforeResolve:beforeResolveGuards.add,
+        afterEach:afterGuards.add,
         // 路由的核心是: 页面切换,重新渲染
         install(app) { // 传入一个app,
 
