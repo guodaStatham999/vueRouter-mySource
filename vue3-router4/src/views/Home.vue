@@ -21,5 +21,10 @@ export default {
   components: {
     HelloWorld,
   },
+  mounted() {
+    console.log(333);
+    console.log(this.$router)
+    console.log(this.$route)
+  },
 };
 </script>

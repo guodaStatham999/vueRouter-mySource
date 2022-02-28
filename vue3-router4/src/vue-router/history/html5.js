@@ -23,8 +23,6 @@ function createCurrentLocation(base = '') {
         search,
         hash
     } = window.location;
-    // console.log(window.location);
-    console.log(base);
    let hasPos = base.includes('#') // 有hash就是存在路径
    if(hasPos){ // 如果有hash
        return base.slice(1) || '/' // 如果有#,就把#裁剪掉. 但是发现bug缺少一个/
@@ -95,9 +93,6 @@ function useHistoryStateNavigation(base) {
         changeLocation(to, state, true)
         currentLocation.value = to // 替换后需要将路径变为现在的路径
     }
-    console.log(historyState.value);
-
-
     return {
         location: currentLocation, // 当前位置
         state: historyState,
@@ -118,7 +113,6 @@ function useHistoryStateListeners(base,historyState, currentLocation) { // 做�
         historyState.value = state // state有可能为null
         // buildState(from,currentLocation,to)
         let isBack = (state.position - fromState.position) < 0// 当前的状态 - 上次的状态 如果小于0就是后退 否则前进
-        console.log(isBack);
         listeners.forEach(listener => {
             listener(to, from, { isBack })
         })
@@ -148,5 +142,10 @@ export function createWebHistory( base = '') {
         get: () => historyNavigation.state.value
     })
     return routerHistory
+
+    // routerHistory.location 代表当前路径
+    // routerHistory.state 代表当前的状态
+    // listen是个方法 是监听了前进后退的事件
+    // push&replace 是切换路径和状态 : push是栈中向最后一项后追加 replace是最后一项被替换
 }
 
