@@ -252,10 +252,6 @@ function createRouter({
                     guards.push(guardToPromise(guard, to, from, guard))
             };
             return runGuardQueue(guards)
-        }).then(() => {
-
-        }).then(() => {
-
         })
     }
 
