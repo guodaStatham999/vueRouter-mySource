@@ -11,8 +11,12 @@ import {
     reactive,
     unref
 } from 'vue'
-import { RouterLink } from './router-link'
-import { RouterView } from './router-view'
+import {
+    RouterLink
+} from './router-link'
+import {
+    RouterView
+} from './router-view'
 import {
     createRouterMatcher
 } from './matcher'
@@ -43,6 +47,7 @@ let START_LOCATION_NORMALIZED = { // 初始化路由系统中的默认参数
 
 function useCallback() {
     let handlers = [];
+
     function add(handler) {
         handlers.push(handler)
     }
@@ -51,6 +56,7 @@ function useCallback() {
         list: () => handlers
     }
 }
+
 function extractChangeRecords(to, from) {
 
     // 从to,from里解析出 那个组件是离开的,那个组件是更新的,那个组件是即将进入的
@@ -68,14 +74,14 @@ function extractChangeRecords(to, from) {
         if (recordForm) {
             if (to.matched.find(record => record.path == recordForm.path)) { // 如果去和来的两个数组里都是互有路径,那肯定是更新. 因为路径都一样了,肯定是更新呢
                 updatingRecords.push(recordForm) // 把来/去(去的recordTo声明在下面,就使用了来的路径)的路径放进去,更新来的就行
-            }else{ // 说明当前from就是离开的
+            } else { // 说明当前from就是离开的
                 leavingRecords.push(recordForm)
             }
         }
 
         let recordTo = to.matched[i];
         if (recordTo) {
-            if(!from.matched.find(record=>record.path === recordTo.path)){
+            if (!from.matched.find(record => record.path === recordTo.path)) {
                 // 如果来的里面,不包含要to进入的 => 就是要进入 ,也就是老的路径里,没有新路径,那就是要去新的路径了
                 enteringRecords.push(recordTo) // 新的路径就要记录了
             }
@@ -92,6 +98,52 @@ function extractChangeRecords(to, from) {
         enteringRecords
     ]
 }
+
+
+// 将守卫变成一个promise,这样 串联的时候就可以一个一个执行了
+function guardToPromise(guard, to, from, record) {
+    return () => new Promise((resolve, reject) => {
+        let next = () => resolve(); // 就是用户需要调用的next方法,但是实际上是promise调用完成后,默认调用
+
+        let guardReturn = guard.call(record, to, from, next) // 1. 函数指定this 2. 给传参to,from,next
+
+
+        // 不调用next,函数执行结束后 也会调用next---用户可以不用调用next方法
+        return Promise.resolve(guardReturn).then(next) // 流程: 1. 如果guardReturn函数的promise(也就是Promise.resolve)成功以后会调用.then, 然后执行外层Promise的resolve,也就让外层promise成功
+    })
+
+
+}
+
+// 把上面的不同情况下的组件里的钩子抽离出来
+function extractComponentsGuards(matched, guardType, to, from) {
+    // 参数1: 前面找到的需要抽离守卫的路径
+    // 参数2: 需要抽离守卫的类型 => beforeRouteLeave
+    // 参数3: 去的 对象
+    // 参数4: 来的对象
+
+    let guards = []
+    for (let record of matched) {
+        let rawComponent = record.components.default // 原来的组件
+        let guard = rawComponent[guardType]
+
+        // 需要将钩子全部串联在一起,使用promise
+        guard && guards.push(guardToPromise(guard, to, from, record))
+    }
+    return guards
+}
+
+
+// 执行的是函数,函数执行完毕返回的是一个个的promise [fn()=>promise,fn()=>promise]
+function runGuardQueue(guards) {
+    // 把所有promise串联起来,使用reduce方法
+    // 这个叫promise的组合
+
+    // 其实就是让promise从左到右,挨个执行.
+
+    return guards.reduce((promise, guard) => promise.then(() => guard()), Promise.resolve())
+}
+
 function createRouter({
     history,
     routes
@@ -106,7 +158,9 @@ function createRouter({
     // 解析这个路径 有可能是字符串,有可能是对象 to='/' to={path:/}
     function resolve(to) { // 使用的是外层的matcher里的resolve功能
         if (typeof to == 'string') { // 如果是字符串,就把他们统一成为一个对象,这样后面方便编程序
-            return matcher.resolve({ path: to })
+            return matcher.resolve({
+                path: to
+            })
         } else {
             // 暂时写的都是字符串,不写对象的形式
             return matcher.resolve(to) // 如果是对象,就不用包裹起来
@@ -115,6 +169,7 @@ function createRouter({
     }
 
     let ready;
+
     function markAsReady() { // 标记是否是第一次渲染,渲染完成后,就不会继续触发了
         if (ready) return // 节流,只会初始化一次.
         ready = true
@@ -124,6 +179,7 @@ function createRouter({
             finalizeNavigation(targetLocation, from, true) // 在切换前进后退,是替换模式,不是push模式
         })
     }
+
     function finalizeNavigation(to, from, replace) { // 来去,路由钩子
         // 第一次就调用replace,第二次就是push,但是后来发现bug,一直使用push无法返回 原因: 是前进/后退的时候使用replace模式,才能前进后退. push无法使用前进后退
         if (from === START_LOCATION_NORMALIZED || replace) {
@@ -140,7 +196,6 @@ function createRouter({
         markAsReady()
     }
 
-
     // 真实导航前处理路由守卫
     async function navigate(to, from) { // 因为可以then,所以肯定是个async函数
         // 在做导航的时候,要知道那个组件是进入的,那个组件是离开的. 还要知道那个组件是更新的
@@ -149,10 +204,58 @@ function createRouter({
         // 上面拿到了每种守卫, 里面都是组件, 现在需要提取组件里的钩子
         console.log(leavingRecords, updatingRecords, enteringRecords);
 
+        // 离开的时候: 需要从后往前  /home/a    => /about 也就是先离开a,再离开home
+        let guards = extractComponentsGuards( // 离开钩子
+            leavingRecords.reverse(),
+            'beforeRouteLeave',
+            to,
+            from // 离开的时候其实只要有from就行
+        )
 
 
-        return new Promise((resolve, reject) => {
-            resolve()
+        // 每个then都是一个生命周期,因为是promise,所以一个一个.then的执行
+        return runGuardQueue(guards).then(() => { // 全局前置钩子
+            // 这个是前置钩子=> beforeEach
+            guards = [];
+            for (let guard of beforeGuards.list()) {
+                guards.push(guardToPromise(guard, to, from, guard))
+            };
+            return runGuardQueue(guards)
+        }).then(() => { // 更新钩子
+            guards = extractComponentsGuards(
+                updatingRecords,
+                'beforeRouteUpdate',
+                to,
+                from // 离开的时候其实只要有from就行
+            )
+            return runGuardQueue(guards)
+        }).then(() => { // 路由进入-0---
+            guards = [];
+            for (let record of to.matched) {
+                if (record.beforeEnter) {
+                    guards.push(guardToPromise(record.beforeEnter, to, from, record))
+
+                }
+            };
+            return runGuardQueue(guards)
+        }).then(() => { // 组件进入
+            guards = extractComponentsGuards(
+                enteringRecords,
+                'beforeRouteEnter',
+                to,
+                from // 离开的时候其实只要有from就行
+            )
+            return runGuardQueue(guards)
+        }).then(() => { // 最后是全局的解析钩子
+            guards = [];
+            for (let guard of beforeResolveGuards.list()) {
+                    guards.push(guardToPromise(guard, to, from, guard))
+            };
+            return runGuardQueue(guards)
+        }).then(() => {
+
+        }).then(() => {
+
         })
     }
 

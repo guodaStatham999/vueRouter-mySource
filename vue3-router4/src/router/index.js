@@ -42,8 +42,36 @@ const router = createRouter({
 router.beforeEach((to,from,next)=>{
   console.log(to,'全局钩子,beforeEach,前置钩子');
 })
+router.beforeEach((to,from,next)=>{
+  return new Promise((resolve,reject)=>{
+    setTimeout(
+       ()=>{
+        console.log(to,'1全局钩子,beforeEach,前置钩子');
+        resolve()
+       },
+       1000)
+  })
+ 
+})
+router.beforeEach((to,from,next)=>{
+  return new Promise((resolve,reject)=>{
+    setTimeout(
+       ()=>{
+        console.log(to,'2全局钩子,beforeEach,前置钩子');
+        resolve()
+       },
+       2000)
+  })
+})
 router.beforeResolve((to,from,next)=>{
-  console.log(to,'全局钩子,beforeResolve,解析');
+  return new Promise((resolve,reject)=>{
+    setTimeout(
+       ()=>{
+        console.log(to,'全局钩子--解析,beforeResolve,前置钩子');
+        resolve()
+       },
+       3000)
+  })
 })
 router.afterEach((to,from,next)=>{
   console.log(to,'全局钩子,afterEach,后置钩子');
